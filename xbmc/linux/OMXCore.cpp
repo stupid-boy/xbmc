@@ -32,6 +32,7 @@
 #include "utils/log.h"
 
 #include "OMXClock.h"
+#include "omx_loader_XBMC.h"
 
 #ifdef TARGET_LINUX
 #include "XMemUtils.h"
@@ -269,6 +270,23 @@ OMX_ERRORTYPE COMXCoreTunel::Establish(bool portSettingsChanged, bool enable_por
 
   if(m_src_component->GetComponent() && m_dst_component->GetComponent())
   {
+    OMX_PARAM_PORTDEFINITIONTYPE srcDef, destDef;
+    OMX_INIT_STRUCTURE(srcDef);
+    OMX_INIT_STRUCTURE(destDef);
+    srcDef.nPortIndex = m_src_port;
+    destDef.nPortIndex = m_dst_port;
+
+    m_src_component->GetParameter(OMX_IndexParamPortDefinition, &srcDef);
+    m_dst_component->GetParameter(OMX_IndexParamPortDefinition, &destDef);
+
+    srcDef.nBufferCountActual = std::max(srcDef.nBufferCountActual, destDef.nBufferCountActual);
+    destDef.nBufferCountActual = srcDef.nBufferCountActual;
+    srcDef.nBufferSize = std::max(srcDef.nBufferSize, destDef.nBufferSize);
+    destDef.nBufferSize = srcDef.nBufferSize;
+
+    m_src_component->SetParameter(OMX_IndexParamPortDefinition, &srcDef);
+    m_dst_component->SetParameter(OMX_IndexParamPortDefinition, &destDef);
+
     omx_err = m_DllOMX->OMX_SetupTunnel(m_src_component->GetComponent(), m_src_port, m_dst_component->GetComponent(), m_dst_port);
     if(omx_err != OMX_ErrorNone) 
     {
@@ -1383,10 +1401,17 @@ bool COMXCoreComponent::Initialize( const std::string &component_name, OMX_INDEX
     omx_err = m_DllOMX->OMX_GetHandle(&m_handle, (char*)component_name.c_str(), this, &m_callbacks);
     if (!m_handle || omx_err != OMX_ErrorNone)
     {
-      CLog::Log(LOGERROR, "COMXCoreComponent::Initialize - could not get component handle for %s omx_err(0x%08x)\n",
+      CLog::Log(LOGINFO, "COMXCoreComponent::Initialize - could not get component handle from Broadcom for %s omx_err(0x%08x)\n",
           component_name.c_str(), (int)omx_err);
-      Deinitialize(true);
-      return false;
+
+      omx_err = OMX_GetHandle_XBMC(&m_handle, (char*)component_name.c_str(), this, &m_callbacks);
+      if (!m_handle || omx_err != OMX_ErrorNone)
+      {
+        CLog::Log(LOGERROR, "COMXCoreComponent::Initialize - could not get component handle for %s omx_err(0x%08x)\n",
+          component_name.c_str(), (int)omx_err);
+        Deinitialize(true);
+        return false;
+      }
     }
 
     CLog::Log(LOGDEBUG, "COMXCoreComponent::Initialize : %s handle %p dllopen : %d\n", 
@@ -1466,7 +1491,17 @@ bool COMXCoreComponent::Deinitialize(bool free_component /* = false */)
     {
       CLog::Log(LOGDEBUG, "COMXCoreComponent::Deinitialize : %s handle %p dllopen : %d\n", 
           m_componentName.c_str(), m_handle, m_DllOMXOpen);
-      omx_err = m_DllOMX->OMX_FreeHandle(m_handle);
+
+      // Both will generate Segmentation fault if enemy handle is passed
+      if (m_componentName=="OMX.XBMC.alsa.alsasink")
+      {
+        omx_err = OMX_FreeHandle_XBMC(m_handle);
+      }
+      else
+      {
+        omx_err = m_DllOMX->OMX_FreeHandle(m_handle);
+      }
+
       if (omx_err != OMX_ErrorNone)
       {
         CLog::Log(LOGERROR, "COMXCoreComponent::Deinitialize - failed to free handle for component %s omx_err(0x%08x)",

@@ -213,7 +213,8 @@ bool COMXAudio::PortSettingsChanged()
   }
   if (CSettings::Get().GetBool("audiooutput.dualaudio") || CSettings::Get().GetInt("audiooutput.mode") == AUDIO_HDMI)
   {
-    if(!m_omx_render_hdmi.Initialize("OMX.broadcom.audio_render", OMX_IndexParamAudioInit))
+    //if(!m_omx_render_hdmi.Initialize("OMX.broadcom.audio_render", OMX_IndexParamAudioInit))
+    if(!m_omx_render_hdmi.Initialize("OMX.XBMC.alsa.alsasink", OMX_IndexParamAudioInit))
       return false;
   }
 
