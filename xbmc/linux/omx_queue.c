@@ -88,6 +88,7 @@ void omx_queue_deinit(omx_queue_t* queue) {
  */
 void omx_queue(omx_queue_t* queue, void* data) {
   if (queue->last->data != NULL) {
+    DEBUG(DEB_LEV_ERR, "In %s ERROR! Full queue\n",__func__);
     return;
   }
   pthread_mutex_lock(&queue->mutex);
@@ -107,6 +108,7 @@ void omx_queue(omx_queue_t* queue, void* data) {
 void* omx_dequeue(omx_queue_t* queue) {
   void* data;
   if (queue->first->data == NULL) {
+    DEBUG(DEB_LEV_ERR, "In %s ERROR! Empty queue\n",__func__);
     return NULL;
   }
   pthread_mutex_lock(&queue->mutex);

@@ -283,10 +283,10 @@ OMX_ERRORTYPE omx_alsasink_component_port_SendBufferFunction(omx_base_PortType *
       (pBuffer->nFlags != OMX_BUFFERFLAG_EOS)){  
     SendFrame = omx_alsasink_component_ClockPortHandleFunction((omx_alsasink_component_PrivateType*)omx_base_component_Private, pBuffer); 
     /* drop the frame */
-    if(!SendFrame){
-      DEBUG(DEB_LEV_SIMPLE_SEQ, "In %s Dropping frame !!!!!\n", __func__);
-      pBuffer->nFilledLen=0;
-    }
+    //if(!SendFrame){
+    //  DEBUG(DEB_LEV_SIMPLE_SEQ, "In %s Dropping frame !!!!!\n", __func__);
+    //  pBuffer->nFilledLen=0;
+    //}
   }
 
   /* And notify the buffer management thread we have a fresh new buffer to manage */
@@ -388,7 +388,8 @@ OMX_BOOL omx_alsasink_component_ClockPortHandleFunction(omx_alsasink_component_P
 
   /* do not send the data to alsa and return back, if the clock is not running or the scale is anything but 1*/
   if(!(omx_alsasink_component_Private->eState==OMX_TIME_ClockStateRunning  && omx_alsasink_component_Private->xScale==(1<<16))){
-    if (omx_alsasink_component_Private->xScale!=0){
+    // TODO: 0 means PAUSED. is correct to keep that frame?
+    if ((omx_alsasink_component_Private->xScale!=0) && (omx_alsasink_component_Private->xScale!=(1<<16))){
       inputbuffer->nFilledLen=0;
       DEBUG(DEB_LEV_SIMPLE_SEQ, "In %s Dropping frame !!!!!  eState=%d  xScale=%d\n", __func__, omx_alsasink_component_Private->eState, omx_alsasink_component_Private->xScale);
     }
@@ -462,7 +463,7 @@ OMX_BOOL omx_alsasink_component_ClockPortHandleFunction(omx_alsasink_component_P
             }
             else {
               SendFrame = OMX_FALSE; /* as offset is <0 do not send the data to the device */
-              DEBUG(DEB_LEV_SIMPLE_SEQ, "In %s Dropping frame !!!!! nOffset>0 !!!  nOffset=%ll\n", __func__, pMediaTime->nOffset);
+              //DEBUG(DEB_LEV_SIMPLE_SEQ, "In %s Dropping frame !!!!! nOffset>0 !!!  nOffset=%ll\n", __func__, pMediaTime->nOffset);
             }
           }
           pClockPort->ReturnBufferFunction((omx_base_PortType*)pClockPort,clockBuffer);

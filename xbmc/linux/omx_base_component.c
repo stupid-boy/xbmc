@@ -324,6 +324,15 @@ OMX_ERRORTYPE omx_base_component_DoStateSet(OMX_COMPONENTTYPE *openmaxStandComp,
           }
           pPort->sPortParam.bPopulated = OMX_FALSE;
 
+          if(pPort->bTunnelTearDown == OMX_TRUE){
+            DEBUG(DEB_LEV_PARAMS, "In %s TearDown tunnel\n", __func__);
+            pPort->hTunneledComponent = 0;
+            pPort->nTunneledPort = 0;
+            pPort->nTunnelFlags = 0;
+            pPort->eBufferSupplier=OMX_BufferSupplyUnspecified;
+            pPort->bTunnelTearDown = OMX_FALSE;
+          }
+
           if(pPort->pInternalBufferStorage != NULL) {
             free(pPort->pInternalBufferStorage);
             pPort->pInternalBufferStorage=NULL;
@@ -1183,7 +1192,7 @@ OMX_ERRORTYPE omx_base_component_SendCommand(
     }    
     break;
   case OMX_CommandFlush:
-    DEBUG(DEB_LEV_FUNCTION_NAME, "In %s  OMX_CommandFlush\n", __func__);
+    DEBUG(DEB_LEV_FUNCTION_NAME, "In %s  OMX_CommandFlush port=%d\n", __func__, nParam);
     if (nParam >= (omx_base_component_Private->sPortTypesParam[OMX_PortDomainAudio].nPorts +
                    omx_base_component_Private->sPortTypesParam[OMX_PortDomainVideo].nPorts +
                    omx_base_component_Private->sPortTypesParam[OMX_PortDomainImage].nPorts +
@@ -1284,8 +1293,6 @@ void* compMessageHandlerFunction(void* param) {
 
     /*Destructor has been called. So exit from the loop*/
     if(omx_base_component_Private->state == OMX_StateInvalid) {
-      DEBUG(DEB_LEV_FUNCTION_NAME,"EMERGENCY exiting Message Handler thread\n");
-      pthread_exit(NULL);
       break;
     }
 

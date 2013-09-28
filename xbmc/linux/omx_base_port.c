@@ -36,7 +36,7 @@
 #include "omx_base_port.h"
 
 /** The default value for the number of needed buffers for each port. */
-#define DEFAULT_NUMBER_BUFFERS_PER_PORT 10
+#define DEFAULT_NUMBER_BUFFERS_PER_PORT 2
 /** The default value for the minimum number of needed buffers for each port. */
 #define DEFAULT_MIN_NUMBER_BUFFERS_PER_PORT 2
 /** 
@@ -76,6 +76,7 @@ OMX_ERRORTYPE base_port_Constructor(OMX_COMPONENTTYPE *openmaxStandComp,omx_base
   (*openmaxStandPort)->nTunneledPort=0;
   (*openmaxStandPort)->eBufferSupplier=OMX_BufferSupplyUnspecified; 
   (*openmaxStandPort)->nNumTunnelBuffer=0;
+  (*openmaxStandPort)->bTunnelTearDown = OMX_FALSE;
 
   if((*openmaxStandPort)->pAllocSem==NULL) {
     (*openmaxStandPort)->pAllocSem = calloc(1,sizeof(omx_tsem_t));
@@ -280,6 +281,15 @@ OMX_ERRORTYPE base_port_DisablePort(omx_base_PortType *openmaxStandPort) {
         DEBUG(DEB_LEV_ERR, "In %s Freeing Tunnel Buffer Error=%x\n",__func__,err); 
       }
       DEBUG(DEB_LEV_PARAMS, "In %s Qelem=%d\n", __func__,openmaxStandPort->pBufferQueue->nelem);
+    }
+
+    if(openmaxStandPort->bTunnelTearDown == OMX_TRUE){
+      DEBUG(DEB_LEV_PARAMS, "In %s TearDown tunnel\n", __func__);
+      openmaxStandPort->hTunneledComponent = 0;
+      openmaxStandPort->nTunneledPort = 0;
+      openmaxStandPort->nTunnelFlags = 0;
+      openmaxStandPort->eBufferSupplier=OMX_BufferSupplyUnspecified;
+      openmaxStandPort->bTunnelTearDown = OMX_FALSE;
     }
   }
 
@@ -740,11 +750,8 @@ OMX_ERRORTYPE base_port_FreeTunnelBuffer(omx_base_PortType *openmaxStandPort,OMX
         eError=OMX_FreeBuffer(openmaxStandPort->hTunneledComponent,openmaxStandPort->nTunneledPort,openmaxStandPort->pInternalBufferStorage[i]);
         if(eError!=OMX_ErrorNone) {
           DEBUG(DEB_LEV_ERR,"Tunneled Component Couldn't free buffer %i \n",i);
-          /// AND
           // see 2.1.2 and 3.1 in http://www.khronos.org/registry/omxil/specs/OpenMAX_IL_1_1_2_Application_Note_318.pdf
-          //if((eError ==  OMX_ErrorIncorrectStateTransition) && numRetry<TUNNEL_USE_BUFFER_RETRY) {
-          if(((eError ==  OMX_ErrorIncorrectStateTransition)||(eError ==  OMX_ErrorIncorrectStateOperation)) && numRetry<TUNNEL_USE_BUFFER_RETRY) {
-            /// AND
+          if((eError ==  OMX_ErrorIncorrectStateTransition) && numRetry<TUNNEL_USE_BUFFER_RETRY) {
             DEBUG(DEB_LEV_ERR,"Waiting for next try %i \n",(int)numRetry);
             usleep(TUNNEL_USE_BUFFER_RETRY_USLEEP_TIME);
             numRetry++;
@@ -928,12 +935,24 @@ OMX_ERRORTYPE base_port_ComponentTunnelRequest(omx_base_PortType* openmaxStandPo
   OMX_PARAM_PORTDEFINITIONTYPE param;
   OMX_PARAM_BUFFERSUPPLIERTYPE pSupplier;
 
+  DEBUG(DEB_LEV_FUNCTION_NAME, "In %s\n", __func__);
+
   if (pTunnelSetup == NULL || hTunneledComp == 0) {
     /* cancel previous tunnel */
-    openmaxStandPort->hTunneledComponent = 0;
-    openmaxStandPort->nTunneledPort = 0;
-    openmaxStandPort->nTunnelFlags = 0;
-    openmaxStandPort->eBufferSupplier=OMX_BufferSupplyUnspecified;
+    OMX_COMPONENTTYPE* omxComponent = openmaxStandPort->standCompContainer;
+    omx_base_component_PrivateType* omx_base_component_Private = (omx_base_component_PrivateType*)omxComponent->pComponentPrivate;
+    if (PORT_IS_TUNNELED(openmaxStandPort) && (PORT_IS_BEING_DISABLED(openmaxStandPort) || (omx_base_component_Private->transientState == OMX_TransStateIdleToLoaded)))
+    {
+      DEBUG(DEB_LEV_FUNCTION_NAME, "In %s Scheduled TearDown  port=%d  PORT_IS_BEING_DISABLED(%d)  transientState=%d\n", 
+          __func__, openmaxStandPort->sPortParam.nPortIndex, PORT_IS_BEING_DISABLED(openmaxStandPort), omx_base_component_Private->transientState);
+      openmaxStandPort->bTunnelTearDown = OMX_TRUE;
+    }
+    else {
+      openmaxStandPort->hTunneledComponent = 0;
+      openmaxStandPort->nTunneledPort = 0;
+      openmaxStandPort->nTunnelFlags = 0;
+      openmaxStandPort->eBufferSupplier=OMX_BufferSupplyUnspecified;
+    }
     return OMX_ErrorNone;
   }
 

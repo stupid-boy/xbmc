@@ -34,7 +34,7 @@
 #include <pthread.h>
 /** Maximum number of elements in a queue 
  */
-#define MAX_QUEUE_ELEMENTS 10
+#define MAX_QUEUE_ELEMENTS 20
 /** Output port queue element. Contains an OMX buffer header type
  */
 typedef struct omx_qelem_t omx_qelem_t;

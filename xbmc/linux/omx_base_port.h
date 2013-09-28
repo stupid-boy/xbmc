@@ -122,6 +122,7 @@ CLASS(omx_base_PortType)
   OMX_HANDLETYPE hTunneledComponent; /**< @param hTunneledComponent Handle to the tunnelled component */\
   OMX_U32 nTunnelFlags; /**< This field contains one or more tags that describe the tunnel status of the port */\
   OMX_U32 nTunneledPort; /**< @param nTunneledPort Tunneled port number */ \
+  OMX_BOOL bTunnelTearDown; /**< @param nTunneledPort Helper for assinc TearDown */ \
   OMX_BUFFERSUPPLIERTYPE eBufferSupplier; /**< @param eBufferSupplier the type of supplier in case of tunneling */\
   OMX_U32 nNumTunnelBuffer; /**< @param nNumTunnelBuffer Number of buffer to be tunnelled */\
   omx_tsem_t* pAllocSem; /**< @param pFlushSem Semaphore that locks the execution until the buffers have been flushed, if needed */ \
