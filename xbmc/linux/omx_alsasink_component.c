@@ -277,18 +277,6 @@ OMX_ERRORTYPE omx_alsasink_component_port_SendBufferFunction(omx_base_PortType *
     return err;
   }
 
-  pClockPort  = (omx_base_clock_PortType*)omx_base_component_Private->ports[OMX_BASE_SINK_CLOCKPORT_INDEX];
-  if(PORT_IS_TUNNELED(pClockPort) && !PORT_IS_BEING_FLUSHED(openmaxStandPort) &&
-      (omx_base_component_Private->transientState != OMX_TransStateExecutingToIdle) && 
-      (pBuffer->nFlags != OMX_BUFFERFLAG_EOS)){  
-    SendFrame = omx_alsasink_component_ClockPortHandleFunction((omx_alsasink_component_PrivateType*)omx_base_component_Private, pBuffer); 
-    /* drop the frame */
-    //if(!SendFrame){
-    //  DEBUG(DEB_LEV_SIMPLE_SEQ, "In %s Dropping frame !!!!!\n", __func__);
-    //  pBuffer->nFilledLen=0;
-    //}
-  }
-
   /* And notify the buffer management thread we have a fresh new buffer to manage */
   if(!PORT_IS_BEING_FLUSHED(openmaxStandPort) && !(PORT_IS_BEING_DISABLED(openmaxStandPort) && PORT_IS_TUNNELED_N_BUFFER_SUPPLIER(openmaxStandPort))){
       omx_queue(openmaxStandPort->pBufferQueue, pBuffer);
@@ -586,6 +574,20 @@ void omx_alsasink_component_BufferMgmtCallback(OMX_COMPONENTTYPE *openmaxStandCo
   OMX_BOOL                            allDataSent;
   omx_alsasink_component_PrivateType* omx_alsasink_component_Private = openmaxStandComp->pComponentPrivate;
   
+  omx_base_component_PrivateType* omx_base_component_Private = (omx_base_component_PrivateType*)omx_alsasink_component_Private;
+  omx_base_clock_PortType*pClockPort  = (omx_base_clock_PortType*)omx_base_component_Private->ports[OMX_BASE_SINK_CLOCKPORT_INDEX];
+  omx_base_PortType *openmaxStandPort = omx_base_component_Private->ports[OMX_BASE_SINK_INPUTPORT_INDEX];
+  if(PORT_IS_TUNNELED(pClockPort) && !PORT_IS_BEING_FLUSHED(openmaxStandPort) &&
+      (omx_base_component_Private->transientState != OMX_TransStateExecutingToIdle) && 
+      (inputbuffer->nFlags != OMX_BUFFERFLAG_EOS)){ 
+    omx_alsasink_component_ClockPortHandleFunction(omx_alsasink_component_Private, inputbuffer); 
+    if(inputbuffer->nFilledLen == 0)
+    {
+      // Dropped frame by clock
+      return;
+    }
+  }
+
   /* Feed it to ALSA */
   frameSize = (omx_alsasink_component_Private->sPCMModeParam.nChannels * omx_alsasink_component_Private->sPCMModeParam.nBitPerSample) >> 3;
   DEBUG(DEB_LEV_FULL_SEQ, "Framesize is %u chl=%d bufSize=%d\n", 
