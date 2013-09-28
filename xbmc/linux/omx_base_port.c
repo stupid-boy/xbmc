@@ -961,15 +961,29 @@ OMX_ERRORTYPE base_port_ComponentTunnelRequest(omx_base_PortType* openmaxStandPo
     param.nPortIndex=nTunneledPort;
     setHeader(&param, sizeof(OMX_PARAM_PORTDEFINITIONTYPE));
     err = OMX_GetParameter(hTunneledComp, OMX_IndexParamPortDefinition, &param);
-    /// \todo insert here a detailed comparison with the OMX_AUDIO_PORTDEFINITIONTYPE
     if (err != OMX_ErrorNone) {
-      DEBUG(DEB_LEV_ERR,"In %s Tunneled Port Definition error=0x%08x Line=%d\n",__func__,err,__LINE__);
+      DEBUG(DEB_LEV_ERR,"In %s Get Tunneled Port Definition error=0x%08x Line=%d\n",__func__,err,__LINE__);
       // compatibility not reached
       return OMX_ErrorPortsNotCompatible;
     }
-    /// AND
+
+    // Negotiate buffer params
+    param.nBufferCountActual = param.nBufferCountMin > openmaxStandPort->sPortParam.nBufferCountMin ?
+      param.nBufferCountMin : openmaxStandPort->sPortParam.nBufferCountMin;
+    openmaxStandPort->sPortParam.nBufferCountActual = param.nBufferCountActual;
+
+    param.nBufferSize = param.nBufferSize > openmaxStandPort->sPortParam.nBufferSize ?
+      param.nBufferSize : openmaxStandPort->sPortParam.nBufferSize;
+    openmaxStandPort->sPortParam.nBufferSize = param.nBufferSize;
+
+    err = OMX_SetParameter(hTunneledComp, OMX_IndexParamPortDefinition, &param);
+    if (err != OMX_ErrorNone) {
+      DEBUG(DEB_LEV_ERR,"In %s Set Tunneled Port Definition error=0x%08x Line=%d\n",__func__,err,__LINE__);
+      return OMX_ErrorPortsNotCompatible;
+    }
+
     openmaxStandPort->nNumTunnelBuffer=param.nBufferCountActual; //nBufferCountMin;
-    /// AND
+
     if(param.eDomain!=openmaxStandPort->sPortParam.eDomain) {
       return OMX_ErrorPortsNotCompatible;
     }

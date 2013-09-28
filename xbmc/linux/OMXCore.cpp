@@ -270,23 +270,6 @@ OMX_ERRORTYPE COMXCoreTunel::Establish(bool portSettingsChanged, bool enable_por
 
   if(m_src_component->GetComponent() && m_dst_component->GetComponent())
   {
-    OMX_PARAM_PORTDEFINITIONTYPE srcDef, destDef;
-    OMX_INIT_STRUCTURE(srcDef);
-    OMX_INIT_STRUCTURE(destDef);
-    srcDef.nPortIndex = m_src_port;
-    destDef.nPortIndex = m_dst_port;
-
-    m_src_component->GetParameter(OMX_IndexParamPortDefinition, &srcDef);
-    m_dst_component->GetParameter(OMX_IndexParamPortDefinition, &destDef);
-
-    srcDef.nBufferCountActual = std::max(srcDef.nBufferCountActual, destDef.nBufferCountActual);
-    destDef.nBufferCountActual = srcDef.nBufferCountActual;
-    srcDef.nBufferSize = std::max(srcDef.nBufferSize, destDef.nBufferSize);
-    destDef.nBufferSize = srcDef.nBufferSize;
-
-    m_src_component->SetParameter(OMX_IndexParamPortDefinition, &srcDef);
-    m_dst_component->SetParameter(OMX_IndexParamPortDefinition, &destDef);
-
     omx_err = m_DllOMX->OMX_SetupTunnel(m_src_component->GetComponent(), m_src_port, m_dst_component->GetComponent(), m_dst_port);
     if(omx_err != OMX_ErrorNone) 
     {
