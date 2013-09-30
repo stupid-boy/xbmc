@@ -157,6 +157,11 @@ OMX_ERRORTYPE omx_alsasink_component_Constructor(OMX_COMPONENTTYPE *openmaxStand
     return OMX_ErrorHardware;
   }
 
+  if (snd_pcm_status_malloc(&omx_alsasink_component_Private->pcm_status) < 0 ) {
+    DEBUG(DEB_LEV_ERR, "%s: failed allocating pcm_status\n", __func__);
+    return OMX_ErrorHardware;
+  }
+
   openmaxStandComp->SetParameter  = omx_alsasink_component_SetParameter;
   openmaxStandComp->GetParameter  = omx_alsasink_component_GetParameter;
 
@@ -184,6 +189,10 @@ OMX_ERRORTYPE omx_alsasink_component_Destructor(OMX_COMPONENTTYPE *openmaxStandC
 
   if(omx_alsasink_component_Private->hw_params) {
     snd_pcm_hw_params_free (omx_alsasink_component_Private->hw_params);
+  }
+
+  if(omx_alsasink_component_Private->pcm_status) {
+    snd_pcm_status_free(omx_alsasink_component_Private->pcm_status);
   }
   if(omx_alsasink_component_Private->playback_handle) {
     snd_pcm_close(omx_alsasink_component_Private->playback_handle);
@@ -390,14 +399,38 @@ OMX_BOOL omx_alsasink_component_ClockPortHandleFunction(omx_alsasink_component_P
   if(count==15) { //send request for every 15th frame 
     count=0;
 
-  OMX_TIME_CONFIG_TIMESTAMPTYPE ts;
-  setHeader(&ts, sizeof(OMX_TIME_CONFIG_TIMESTAMPTYPE));
-  ts.nPortIndex = pClockPort->nTunneledPort;
-  ts.nTimestamp = inputbuffer->nTimeStamp;
-  if (OMX_ErrorNone != OMX_SetConfig(hclkComponent, OMX_IndexConfigTimeCurrentAudioReference,&ts))
-  {
-      DEBUG(DEB_LEV_ERR,"In %s unable to update reference clock.\n",__func__);
-  }
+    OMX_TIME_CONFIG_TIMESTAMPTYPE ts;
+    setHeader(&ts, sizeof(OMX_TIME_CONFIG_TIMESTAMPTYPE));
+    ts.nPortIndex = pClockPort->nTunneledPort;
+
+    snd_pcm_sframes_t avail = 0;
+    int diff = 0;
+    snd_pcm_sframes_t delay = 0;
+
+    OMX_AUDIO_PARAM_PCMMODETYPE* sPCMModeParam = &omx_alsasink_component_Private->sPCMModeParam;
+
+    //snd_pcm_delay(omx_alsasink_component_Private->playback_handle, &delay);
+    // snd_pcm_avail() & snd_pcm_avail_update() are broken on raspberry pi!!!!
+    //avail = snd_pcm_avail(omx_alsasink_component_Private->playback_handle);
+
+    if (snd_pcm_status(omx_alsasink_component_Private->playback_handle, omx_alsasink_component_Private->pcm_status) < 0) {
+      DEBUG(DEB_LEV_ERR,"In %s unable to obtain pcm_status.\n",__func__);
+    }
+
+    delay = snd_pcm_status_get_delay(omx_alsasink_component_Private->pcm_status);
+    avail = (snd_pcm_sframes_t) snd_pcm_status_get_avail(omx_alsasink_component_Private->pcm_status);
+
+    diff = ((double)(delay - avail) / sPCMModeParam->nSamplingRate) * 1000 * 1000; // in microseconds !!!
+
+    //DEBUG(DEB_LEV_FULL_SEQ,"In %s delay=%d  avail=%d  diff=%d  inputbuffer->nTimeStamp=%lld  corected inputbuffer->nTimeStamp=%lld  nOldTimeStamp=%lld\n",
+    //  __func__, delay, avail, diff, inputbuffer->nTimeStamp, inputbuffer->nTimeStamp - (OMX_TICKS)diff, nOldTimeStamp);
+
+    ts.nTimestamp = inputbuffer->nTimeStamp - (OMX_TICKS)diff;
+
+    if (OMX_ErrorNone != OMX_SetConfig(hclkComponent, OMX_IndexConfigTimeCurrentAudioReference,&ts)) {
+        DEBUG(DEB_LEV_ERR,"In %s unable to update reference clock.\n",__func__);
+    }
+
 #if 0
     /* requesting for the timestamp for the data delivery */
     if(!PORT_IS_BEING_FLUSHED(pAudioPort) && !PORT_IS_BEING_FLUSHED(pClockPort)&&

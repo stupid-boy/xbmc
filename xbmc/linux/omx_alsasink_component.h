@@ -52,6 +52,7 @@ DERIVEDCLASS(omx_alsasink_component_PrivateType, omx_base_sink_PrivateType)
   OMX_AUDIO_PARAM_PCMMODETYPE  sPCMModeParam; \
   char                         AudioPCMConfigured;  \
   snd_pcm_t*                   playback_handle;  \
+  snd_pcm_status_t*            pcm_status; \
   OMX_S32                      xScale; \
   OMX_TIME_CLOCKSTATE          eState; \
   snd_pcm_hw_params_t*         hw_params;
