@@ -1080,7 +1080,7 @@ OMX_ERRORTYPE omx_base_component_GetConfig(
   OMX_IN  OMX_HANDLETYPE hComponent,
   OMX_IN  OMX_INDEXTYPE nIndex,
   OMX_INOUT OMX_PTR pComponentConfigStructure) {
-  return OMX_ErrorNone;
+  return OMX_ErrorNotImplemented;
 }
 
 /** @brief base SetConfig function
@@ -1094,6 +1094,7 @@ OMX_ERRORTYPE omx_base_component_SetConfig(
   OMX_IN  OMX_HANDLETYPE hComponent,
   OMX_IN  OMX_INDEXTYPE nIndex,
   OMX_IN  OMX_PTR pComponentConfigStructure) {
+  // TODO: For now, do not return OMX_ErrorNotImplemented here because it breaks current COMXAudio
   return OMX_ErrorNone;
 }
 
@@ -1694,8 +1695,8 @@ OMX_ERRORTYPE omx_base_component_EmptyThisBuffer(
             OMX_IN  OMX_BUFFERHEADERTYPE* pBuffer) {
   omx_base_component_PrivateType* omx_base_component_Private = (omx_base_component_PrivateType*)((OMX_COMPONENTTYPE*)hComponent)->pComponentPrivate;
   omx_base_PortType *pPort;
-  DEBUG(DEB_LEV_FUNCTION_NAME, "In %s pBuffer=0x%x pBuffer->pBuffer=0x%x nInputPortIndex=%d  nOutputPortIndex=%d  nAllocLen=%d nFilledLen=%d\n",
-    __func__, pBuffer, pBuffer->pBuffer, pBuffer->nInputPortIndex, pBuffer->nOutputPortIndex, pBuffer->nAllocLen, pBuffer->nFilledLen);
+  //DEBUG(DEB_LEV_FUNCTION_NAME, "In %s pBuffer=0x%x pBuffer->pBuffer=0x%x nInputPortIndex=%d  nOutputPortIndex=%d  nAllocLen=%d nFilledLen=%d\n",
+  //  __func__, pBuffer, pBuffer->pBuffer, pBuffer->nInputPortIndex, pBuffer->nOutputPortIndex, pBuffer->nAllocLen, pBuffer->nFilledLen);
 
   if (pBuffer->nInputPortIndex >= (omx_base_component_Private->sPortTypesParam[OMX_PortDomainAudio].nPorts +
                                    omx_base_component_Private->sPortTypesParam[OMX_PortDomainVideo].nPorts +
