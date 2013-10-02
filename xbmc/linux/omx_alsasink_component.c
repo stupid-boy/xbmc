@@ -164,6 +164,7 @@ OMX_ERRORTYPE omx_alsasink_component_Constructor(OMX_COMPONENTTYPE *openmaxStand
 
   openmaxStandComp->SetParameter  = omx_alsasink_component_SetParameter;
   openmaxStandComp->GetParameter  = omx_alsasink_component_GetParameter;
+  openmaxStandComp->GetConfig     = omx_alsasink_component_GetConfig;
 
   /* Write in the default parameters */
   omx_alsasink_component_Private->AudioPCMConfigured  = 0;
@@ -304,6 +305,31 @@ OMX_ERRORTYPE omx_alsasink_component_port_SendBufferFunction(omx_base_PortType *
   }
   return OMX_ErrorNone;
 }
+
+OMX_ERRORTYPE omx_alsasink_component_GetConfig(
+  OMX_IN  OMX_HANDLETYPE hComponent,
+  OMX_IN  OMX_INDEXTYPE nIndex,
+  OMX_INOUT OMX_PTR pComponentConfigStructure) {
+
+  DEBUG(DEB_LEV_FUNCTION_NAME, "In %s\n", __func__);
+
+  if (nIndex == OMX_IndexConfigAudioRenderingLatency) {
+    OMX_PARAM_U32TYPE* param = (OMX_PARAM_U32TYPE*)pComponentConfigStructure;
+
+    omx_alsasink_component_PrivateType* omx_alsasink_component_Private = ((OMX_COMPONENTTYPE*)hComponent)->pComponentPrivate;
+
+    if (param->nPortIndex == OMX_BASE_SINK_INPUTPORT_INDEX ) {
+      // As this is used only as bool, we can return 'just something' here.
+      // TODO: Add appropriate processing when needed
+      param->nU32 = omx_alsasink_component_Private->ports[OMX_BASE_SINK_INPUTPORT_INDEX]->pBufferQueue->nelem;
+      DEBUG(DEB_LEV_FUNCTION_NAME, "In %s  OMX_IndexConfigAudioRenderingLatency return %d\n", __func__, param->nU32);
+      return OMX_ErrorNone;
+    }
+  }
+
+  return OMX_ErrorNotImplemented;
+}
+
 
 OMX_BOOL omx_alsasink_component_ClockPortHandleFunction(omx_alsasink_component_PrivateType* omx_alsasink_component_Private, OMX_BUFFERHEADERTYPE* inputbuffer){
   omx_base_clock_PortType*            pClockPort;
@@ -513,6 +539,18 @@ OMX_ERRORTYPE omx_alsasink_component_port_FlushProcessingBuffers(omx_base_PortTy
 
   pClockPort    = (omx_base_clock_PortType*) omx_alsasink_component_Private->ports[OMX_BASE_SINK_CLOCKPORT_INDEX];
 
+  if (!PORT_IS_ENABLED(openmaxStandPort) || PORT_IS_BEING_DISABLED(openmaxStandPort)) {
+    if (PORT_IS_TUNNELED_N_BUFFER_SUPPLIER(openmaxStandPort)) {
+      while(openmaxStandPort->pBufferQueue->nelem!= openmaxStandPort->nNumAssignedBuffers){
+        DEBUG(DEB_LEV_PARAMS, "In %s ---------- waiting for buffers. qelem=%d\n",__func__,openmaxStandPort->pBufferQueue->nelem);
+        omx_tsem_down(openmaxStandPort->pBufferSem);
+        DEBUG(DEB_LEV_PARAMS, "In %s Got a buffer qelem=%d\n",__func__,openmaxStandPort->pBufferQueue->nelem);
+      }
+      omx_tsem_reset(openmaxStandPort->pBufferSem);
+    }
+    return OMX_ErrorNone;
+  }
+
   if(openmaxStandPort->sPortParam.eDomain!=OMX_PortDomainOther) { /* clock buffers not used in the clients buffer managment function */
     pthread_mutex_lock(&omx_base_component_Private->flush_mutex);
     openmaxStandPort->bIsPortFlushed=OMX_TRUE;
@@ -549,7 +587,7 @@ OMX_ERRORTYPE omx_alsasink_component_port_FlushProcessingBuffers(omx_base_PortTy
 
     omx_tsem_down(openmaxStandPort->pBufferSem);
     pBuffer = omx_dequeue(openmaxStandPort->pBufferQueue);
-    if (PORT_IS_TUNNELED(openmaxStandPort) && !PORT_IS_BUFFER_SUPPLIER(openmaxStandPort)) {
+    if (PORT_IS_TUNNELED(openmaxStandPort)) {
       DEBUG(DEB_LEV_FULL_SEQ, "In %s: Comp %s is returning io:%d buffer\n", 
         __func__,omx_base_component_Private->name,(int)openmaxStandPort->sPortParam.nPortIndex);
       if (openmaxStandPort->sPortParam.eDir == OMX_DirInput) {
@@ -557,22 +595,12 @@ OMX_ERRORTYPE omx_alsasink_component_port_FlushProcessingBuffers(omx_base_PortTy
       } else {
         ((OMX_COMPONENTTYPE*)(openmaxStandPort->hTunneledComponent))->EmptyThisBuffer(openmaxStandPort->hTunneledComponent, pBuffer);
       }
-    } else if (PORT_IS_TUNNELED_N_BUFFER_SUPPLIER(openmaxStandPort)) {
-      omx_queue(openmaxStandPort->pBufferQueue,pBuffer);
     } else {
       (*(openmaxStandPort->BufferProcessedCallback))(
         openmaxStandPort->standCompContainer,
         omx_base_component_Private->callbackData,
         pBuffer);
     }
-  }
-  /*Port is tunneled and supplier and didn't received all it's buffer then wait for the buffers*/
-  if (PORT_IS_TUNNELED_N_BUFFER_SUPPLIER(openmaxStandPort)) {
-    while(openmaxStandPort->pBufferQueue->nelem!= openmaxStandPort->nNumAssignedBuffers){
-      omx_tsem_down(openmaxStandPort->pBufferSem);
-      DEBUG(DEB_LEV_PARAMS, "In %s Got a buffer qelem=%d\n",__func__,openmaxStandPort->pBufferQueue->nelem);
-    }
-    omx_tsem_reset(openmaxStandPort->pBufferSem);
   }
 
   pthread_mutex_lock(&omx_base_component_Private->flush_mutex);
