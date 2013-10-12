@@ -40,7 +40,7 @@
 /** Default size of the internal input buffer */
 #define DEFAULT_IN_BUFFER_SIZE  4 * 1024
 /** Default size of the internal output buffer */
-#define DEFAULT_OUT_BUFFER_SIZE 8 * 1024  /*32 * 1024*/ /*16 * 1024 */ // TODO - check this size is ok
+#define DEFAULT_OUT_BUFFER_SIZE 16 * 1024  /*32 * 1024*/ /*16 * 1024 */ // TODO - check this size is ok
 /** Default MIME string length */
 #define DEFAULT_MIME_STRING_LENGTH 128
 
