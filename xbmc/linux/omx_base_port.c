@@ -36,9 +36,9 @@
 #include "omx_base_port.h"
 
 /** The default value for the number of needed buffers for each port. */
-#define DEFAULT_NUMBER_BUFFERS_PER_PORT 2
+#define DEFAULT_NUMBER_BUFFERS_PER_PORT 4
 /** The default value for the minimum number of needed buffers for each port. */
-#define DEFAULT_MIN_NUMBER_BUFFERS_PER_PORT 2
+#define DEFAULT_MIN_NUMBER_BUFFERS_PER_PORT 4
 /** 
   * @brief The base contructor for the generic OpenMAX ST port
   * 
@@ -1055,26 +1055,32 @@ OMX_ERRORTYPE base_port_ComponentTunnelRequest(omx_base_PortType* openmaxStandPo
       openmaxStandPort->eBufferSupplier=OMX_BufferSupplyOutput;
       /// AND
     } else {
-      if (pTunnelSetup->eSupplier == OMX_BufferSupplyInput) {
-        DEBUG(DEB_LEV_ERR,"In %s --------------> OMX_BufferSupplyInput Line=%d\n",__func__,__LINE__);
-        openmaxStandPort->nTunnelFlags |= TUNNEL_IS_SUPPLIER;
-        openmaxStandPort->eBufferSupplier=OMX_BufferSupplyInput;
-      } else if (pTunnelSetup->eSupplier == OMX_BufferSupplyUnspecified) {
-        /// AND TODO: Can be reversed????
-        DEBUG(DEB_LEV_ERR,"In %s --------------> OMX_BufferSupplyUnspecified Line=%d\n",__func__,__LINE__);
-        pTunnelSetup->eSupplier = OMX_BufferSupplyInput;
-        openmaxStandPort->nTunnelFlags |= TUNNEL_IS_SUPPLIER;
-        openmaxStandPort->eBufferSupplier=OMX_BufferSupplyInput;
-        //pTunnelSetup->eSupplier = OMX_BufferSupplyOutput;
-        //openmaxStandPort->eBufferSupplier=OMX_BufferSupplyOutput;
-        /// AND
-      } else if (pTunnelSetup->eSupplier == OMX_BufferSupplyOutput){
-        DEBUG(DEB_LEV_ERR,"In %s --------------> OMX_BufferSupplyOutput Line=%d\n",__func__,__LINE__);
-        pTunnelSetup->eSupplier = OMX_BufferSupplyOutput;
-        openmaxStandPort->eBufferSupplier=OMX_BufferSupplyOutput;
-      } else {
-        DEBUG(DEB_LEV_ERR,"In %s --------------> undefined pTunnelSetup->eSupplier = %d Line=%d\n",__func__,(int)pTunnelSetup->eSupplier,__LINE__);
-      }
+      //if (pTunnelSetup->eSupplier == OMX_BufferSupplyInput) {
+      //  DEBUG(DEB_LEV_ERR,"In %s --------------> OMX_BufferSupplyInput Line=%d\n",__func__,__LINE__);
+      //  openmaxStandPort->nTunnelFlags |= TUNNEL_IS_SUPPLIER;
+      //  openmaxStandPort->eBufferSupplier=OMX_BufferSupplyInput;
+      //} else if (pTunnelSetup->eSupplier == OMX_BufferSupplyUnspecified) {
+      //  /// AND TODO: Can be reversed????
+      //  DEBUG(DEB_LEV_ERR,"In %s --------------> OMX_BufferSupplyUnspecified Line=%d\n",__func__,__LINE__);
+      //  pTunnelSetup->eSupplier = OMX_BufferSupplyInput;
+      //  openmaxStandPort->nTunnelFlags |= TUNNEL_IS_SUPPLIER;
+      //  openmaxStandPort->eBufferSupplier=OMX_BufferSupplyInput;
+      //  //pTunnelSetup->eSupplier = OMX_BufferSupplyOutput;
+      //  //openmaxStandPort->eBufferSupplier=OMX_BufferSupplyOutput;
+      //  /// AND
+      //} else if (pTunnelSetup->eSupplier == OMX_BufferSupplyOutput){
+      //  DEBUG(DEB_LEV_ERR,"In %s --------------> OMX_BufferSupplyOutput Line=%d\n",__func__,__LINE__);
+      //  pTunnelSetup->eSupplier = OMX_BufferSupplyOutput;
+      //  openmaxStandPort->eBufferSupplier=OMX_BufferSupplyOutput;
+      //} else {
+      //  DEBUG(DEB_LEV_ERR,"In %s --------------> undefined pTunnelSetup->eSupplier = %d Line=%d\n",__func__,(int)pTunnelSetup->eSupplier,__LINE__);
+      //}
+
+      // fixed to work only in this direction
+      DEBUG(DEB_LEV_ERR,"In %s --------------> OMX_BufferSupply Line=%d\n",__func__,__LINE__);
+      pTunnelSetup->eSupplier = OMX_BufferSupplyInput;
+      openmaxStandPort->nTunnelFlags |= TUNNEL_IS_SUPPLIER;
+      openmaxStandPort->eBufferSupplier=OMX_BufferSupplyInput;
       /// AND
 
     }
