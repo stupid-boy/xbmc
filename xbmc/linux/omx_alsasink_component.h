@@ -54,8 +54,7 @@ DERIVEDCLASS(omx_alsasink_component_PrivateType, omx_base_sink_PrivateType)
   snd_pcm_t*                   playback_handle;  \
   snd_pcm_status_t*            pcm_status; \
   OMX_S32                      xScale; \
-  OMX_TIME_CLOCKSTATE          eState; \
-  snd_pcm_hw_params_t*         hw_params;
+  OMX_TIME_CLOCKSTATE          eState;
 ENDCLASS(omx_alsasink_component_PrivateType)
 
 /* Component private entry points declaration */

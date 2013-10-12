@@ -138,24 +138,13 @@ OMX_ERRORTYPE omx_alsasink_component_Constructor(OMX_COMPONENTTYPE *openmaxStand
   }
   
   /* Allocate the playback handle and the hardware parameter structure */
-  if ((err = snd_pcm_open (&omx_alsasink_component_Private->playback_handle, "default", SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
-    DEBUG(DEB_LEV_ERR, "cannot open audio device %s (%s)\n", "default", snd_strerror (err));
+  char* name = "default";
+  if ((err = snd_pcm_open (&omx_alsasink_component_Private->playback_handle, name, SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
+    DEBUG(DEB_LEV_ERR, "cannot open audio device %s (%s)\n", name, snd_strerror (err));
     return OMX_ErrorHardware;
   }
   else
     DEBUG(DEB_LEV_SIMPLE_SEQ, "Got playback handle at %p %p in %i\n", omx_alsasink_component_Private->playback_handle, &omx_alsasink_component_Private->playback_handle, getpid());
-
-  if (snd_pcm_hw_params_malloc(&omx_alsasink_component_Private->hw_params) < 0) {
-    DEBUG(DEB_LEV_ERR, "%s: failed allocating input pPort hw parameters\n", __func__);
-    return OMX_ErrorHardware;
-  }
-  else
-    DEBUG(DEB_LEV_SIMPLE_SEQ, "Got hw parameters at %p\n", omx_alsasink_component_Private->hw_params);
-
-  if ((err = snd_pcm_hw_params_any (omx_alsasink_component_Private->playback_handle, omx_alsasink_component_Private->hw_params)) < 0) {
-    DEBUG(DEB_LEV_ERR, "cannot initialize hardware parameter structure (%s)\n",  snd_strerror (err));
-    return OMX_ErrorHardware;
-  }
 
   if (snd_pcm_status_malloc(&omx_alsasink_component_Private->pcm_status) < 0 ) {
     DEBUG(DEB_LEV_ERR, "%s: failed allocating pcm_status\n", __func__);
@@ -187,10 +176,6 @@ OMX_ERRORTYPE omx_alsasink_component_Constructor(OMX_COMPONENTTYPE *openmaxStand
 OMX_ERRORTYPE omx_alsasink_component_Destructor(OMX_COMPONENTTYPE *openmaxStandComp) {
   omx_alsasink_component_PrivateType* omx_alsasink_component_Private = openmaxStandComp->pComponentPrivate;
   OMX_U32 i;
-
-  if(omx_alsasink_component_Private->hw_params) {
-    snd_pcm_hw_params_free (omx_alsasink_component_Private->hw_params);
-  }
 
   if(omx_alsasink_component_Private->pcm_status) {
     snd_pcm_status_free(omx_alsasink_component_Private->pcm_status);
@@ -410,7 +395,7 @@ OMX_BOOL omx_alsasink_component_ClockPortHandleFunction(omx_alsasink_component_P
   }
 
   /* do not send the data to alsa and return back, if the clock is not running or the scale is anything but 1*/
-  if(!(omx_alsasink_component_Private->eState==OMX_TIME_ClockStateRunning  && omx_alsasink_component_Private->xScale==(1<<16))){
+  /*if(!(omx_alsasink_component_Private->eState==OMX_TIME_ClockStateRunning  && omx_alsasink_component_Private->xScale==(1<<16))){
     // TODO: 0 means PAUSED. is correct to keep that frame?
     if ((omx_alsasink_component_Private->xScale!=0) && (omx_alsasink_component_Private->xScale!=(1<<16))){
       inputbuffer->nFilledLen=0;
@@ -419,7 +404,7 @@ OMX_BOOL omx_alsasink_component_ClockPortHandleFunction(omx_alsasink_component_P
     //return;
     SendFrame = OMX_FALSE;
     return SendFrame;
-  }
+  }*/
 
   count++;
   if(count==15) { //send request for every 15th frame 
@@ -448,8 +433,8 @@ OMX_BOOL omx_alsasink_component_ClockPortHandleFunction(omx_alsasink_component_P
 
     diff = ((double)(delay - avail) / sPCMModeParam->nSamplingRate) * 1000 * 1000; // in microseconds !!!
 
-    //DEBUG(DEB_LEV_FULL_SEQ,"In %s delay=%d  avail=%d  diff=%d  inputbuffer->nTimeStamp=%lld  corected inputbuffer->nTimeStamp=%lld  nOldTimeStamp=%lld\n",
-    //  __func__, delay, avail, diff, inputbuffer->nTimeStamp, inputbuffer->nTimeStamp - (OMX_TICKS)diff, nOldTimeStamp);
+    //DEBUG(DEB_LEV_FULL_SEQ,"In %s delay=%d  avail=%d  diff=%d  inputbuffer->nTimeStamp=%lld  corected nTimeStamp=%lld\n",
+    //  __func__, delay, avail, diff, inputbuffer->nTimeStamp, inputbuffer->nTimeStamp - (OMX_TICKS)diff);
 
     ts.nTimestamp = inputbuffer->nTimeStamp - (OMX_TICKS)diff;
 
@@ -635,6 +620,19 @@ void omx_alsasink_component_BufferMgmtCallback(OMX_COMPONENTTYPE *openmaxStandCo
   OMX_BOOL                            allDataSent;
   omx_alsasink_component_PrivateType* omx_alsasink_component_Private = openmaxStandComp->pComponentPrivate;
   
+  frameSize = (omx_alsasink_component_Private->sPCMModeParam.nChannels * omx_alsasink_component_Private->sPCMModeParam.nBitPerSample) >> 3;
+  DEBUG(DEB_LEV_FULL_SEQ, "Framesize is %u chl=%d bufSize=%d\n", 
+  (int)frameSize, (int)omx_alsasink_component_Private->sPCMModeParam.nChannels, (int)inputbuffer->nFilledLen);
+
+  if(inputbuffer->nFilledLen < frameSize){
+    DEBUG(DEB_LEV_ERR, "Ouch!! In %s input buffer filled len(%d) less than frame size(%d)\n",__func__, (int)inputbuffer->nFilledLen, (int)frameSize);
+    return;
+  }
+
+  allDataSent = OMX_FALSE;  
+
+  totalBuffer = inputbuffer->nFilledLen/frameSize;
+
   omx_base_component_PrivateType* omx_base_component_Private = (omx_base_component_PrivateType*)omx_alsasink_component_Private;
   omx_base_clock_PortType*pClockPort  = (omx_base_clock_PortType*)omx_base_component_Private->ports[OMX_BASE_SINK_CLOCKPORT_INDEX];
   omx_base_PortType *openmaxStandPort = omx_base_component_Private->ports[OMX_BASE_SINK_INPUTPORT_INDEX];
@@ -650,21 +648,10 @@ void omx_alsasink_component_BufferMgmtCallback(OMX_COMPONENTTYPE *openmaxStandCo
   }
 
   /* Feed it to ALSA */
-  frameSize = (omx_alsasink_component_Private->sPCMModeParam.nChannels * omx_alsasink_component_Private->sPCMModeParam.nBitPerSample) >> 3;
-  DEBUG(DEB_LEV_FULL_SEQ, "Framesize is %u chl=%d bufSize=%d\n", 
-  (int)frameSize, (int)omx_alsasink_component_Private->sPCMModeParam.nChannels, (int)inputbuffer->nFilledLen);
 
-  if(inputbuffer->nFilledLen < frameSize){
-    DEBUG(DEB_LEV_ERR, "Ouch!! In %s input buffer filled len(%d) less than frame size(%d)\n",__func__, (int)inputbuffer->nFilledLen, (int)frameSize);
-    return;
-  }
-
-  allDataSent = OMX_FALSE;  
-
-  totalBuffer = inputbuffer->nFilledLen/frameSize;
   offsetBuffer = 0;
   while (!allDataSent) {
-  DEBUG(DEB_LEV_ERR, "Writing to the device ..\n");
+  DEBUG(DEB_LEV_SIMPLE_SEQ, "Writing to the device ..\n");
     written = snd_pcm_writei(omx_alsasink_component_Private->playback_handle, inputbuffer->pBuffer + (offsetBuffer * frameSize), totalBuffer);
     if (written < 0) {
       if(written == -EPIPE){
@@ -688,6 +675,7 @@ void omx_alsasink_component_BufferMgmtCallback(OMX_COMPONENTTYPE *openmaxStandCo
       allDataSent = OMX_TRUE;
     }
   }
+
   inputbuffer->nFilledLen=0;
 }
 
@@ -709,20 +697,12 @@ OMX_ERRORTYPE omx_alsasink_component_SetParameter(
   omx_base_audio_PortType* pPort = (omx_base_audio_PortType *) omx_alsasink_component_Private->ports[OMX_BASE_SINK_INPUTPORT_INDEX];
   omx_base_clock_PortType *pClockPort;
   snd_pcm_t* playback_handle = omx_alsasink_component_Private->playback_handle;
-  snd_pcm_hw_params_t* hw_params = omx_alsasink_component_Private->hw_params;
 
   if (ComponentParameterStructure == NULL) {
     return OMX_ErrorBadParameter;
   }
 
   DEBUG(DEB_LEV_SIMPLE_SEQ, "   Setting parameter %i\n", nParamIndex);
-
-  /** Each time we are (re)configuring the hw_params thing
-  * we need to reinitialize it, otherwise previous changes will not take effect.
-  * e.g.: changing a previously configured sampling rate does not have
-  * any effect if we are not calling this each time.
-  */
-  err = snd_pcm_hw_params_any (playback_handle, hw_params);
 
   switch(nParamIndex) {
   case OMX_IndexParamAudioPortFormat:
@@ -759,6 +739,15 @@ OMX_ERRORTYPE omx_alsasink_component_SetParameter(
     {
       unsigned int rate;
       OMX_AUDIO_PARAM_PCMMODETYPE* sPCMModeParam = (OMX_AUDIO_PARAM_PCMMODETYPE*)ComponentParameterStructure;
+      snd_pcm_hw_params_t *hw_params;
+      snd_pcm_hw_params_alloca(&hw_params);
+
+      /** Each time we are (re)configuring the hw_params thing
+      * we need to reinitialize it, otherwise previous changes will not take effect.
+      * e.g.: changing a previously configured sampling rate does not have
+      * any effect if we are not calling this each time.
+      */
+      snd_pcm_hw_params_any(omx_alsasink_component_Private->playback_handle, hw_params);
 
       portIndex = sPCMModeParam->nPortIndex;
       /*Check Structure Header and verify component state*/
@@ -798,13 +787,13 @@ OMX_ERRORTYPE omx_alsasink_component_SetParameter(
         return OMX_ErrorHardware;
       }
       else{
+        DEBUG(DEB_LEV_SIMPLE_SEQ, "Set correctly sampling rate from %lu to %lu\n", sPCMModeParam->nSamplingRate, rate);
         sPCMModeParam->nSamplingRate = rate;
-        DEBUG(DEB_LEV_PARAMS, "Set correctly sampling rate to %lu\n", sPCMModeParam->nSamplingRate);
       }
 
       if(sPCMModeParam->ePCMMode == OMX_AUDIO_PCMModeLinear){
         snd_pcm_format_t snd_pcm_format = SND_PCM_FORMAT_UNKNOWN;
-        DEBUG(DEB_LEV_PARAMS, "Bit per sample %i, signed=%i, little endian=%i\n",
+        DEBUG(DEB_LEV_SIMPLE_SEQ, "Bit per sample %i, signed=%i, little endian=%i\n",
         (int)sPCMModeParam->nBitPerSample,
         (int)sPCMModeParam->eNumData == OMX_NumericalDataSigned,
         (int)sPCMModeParam->eEndian ==  OMX_EndianLittle);
@@ -898,9 +887,46 @@ OMX_ERRORTYPE omx_alsasink_component_SetParameter(
         }
         memcpy(&omx_alsasink_component_Private->sPCMModeParam, ComponentParameterStructure, sizeof(OMX_AUDIO_PARAM_PCMMODETYPE));
       }
+
+      snd_pcm_uframes_t periodSize, bufferSize;
+      bufferSize = sPCMModeParam->nSamplingRate / 5;
+      periodSize = sPCMModeParam->nSamplingRate / 20;
+
+      snd_pcm_uframes_t periodSizeMax = bufferSize / 3;
+      DEBUG(DEB_LEV_SIMPLE_SEQ, "trying snd_pcm_hw_params_set_period_size_max (%d)\n", periodSizeMax);
+      if (err = snd_pcm_hw_params_set_period_size_max(omx_alsasink_component_Private->playback_handle, hw_params, &periodSizeMax, NULL) < 0) {
+        DEBUG(DEB_LEV_ERR, "cannot snd_pcm_hw_params_set_period_size_max (%s)\n",  snd_strerror (err));
+        return;
+      }
+
+      DEBUG(DEB_LEV_SIMPLE_SEQ, "trying snd_pcm_hw_params_set_buffer_size_near (%d)\n", bufferSize);
+      if (err = snd_pcm_hw_params_set_buffer_size_near(omx_alsasink_component_Private->playback_handle, hw_params, &bufferSize) < 0) {
+      //if (err = snd_pcm_hw_params_set_buffer_size(omx_alsasink_component_Private->playback_handle, hw_params, bufferSize) < 0) {
+        DEBUG(DEB_LEV_ERR, "cannot snd_pcm_hw_params_set_buffer_size_near (%s)\n",  snd_strerror (err));
+        return;
+      }
+      DEBUG(DEB_LEV_SIMPLE_SEQ, "snd_pcm_hw_params_set_buffer_size_near returned (%d)\n", bufferSize);
+
+      DEBUG(DEB_LEV_SIMPLE_SEQ, "trying snd_pcm_hw_params_set_period_size_near (%d)\n", periodSize);
+      if (err = snd_pcm_hw_params_set_period_size_near(omx_alsasink_component_Private->playback_handle, hw_params, &periodSize, NULL) < 0) {
+      //if (err = snd_pcm_hw_params_set_period_size(omx_alsasink_component_Private->playback_handle, hw_params, periodSize, 0) < 0) {
+        DEBUG(DEB_LEV_ERR, "cannot snd_pcm_hw_params_set_period_size_near (%s)\n",  snd_strerror (err));
+        return;
+      }
+      DEBUG(DEB_LEV_SIMPLE_SEQ, "snd_pcm_hw_params_set_period_size_near returned (%d)\n", periodSize);
+      /*
+      unsigned int val = 200000;
+      DEBUG(DEB_LEV_SIMPLE_SEQ, "trying snd_pcm_hw_params_set_buffer_time_near (%d)\n", val);
+      if (err = snd_pcm_hw_params_set_buffer_time_near(omx_alsasink_component_Private->playback_handle, hw_params, &val, NULL) < 0 ) {
+        DEBUG(DEB_LEV_ERR, "cannot snd_pcm_hw_params_set_buffer_time (%s)\n",  snd_strerror (err));
+        return;
+      }
+      DEBUG(DEB_LEV_SIMPLE_SEQ, "snd_pcm_hw_params_set_buffer_time_near returned (%d)\n", val);
+      */
+
       /** Configure and prepare the ALSA handle */
       DEBUG(DEB_LEV_SIMPLE_SEQ, "Configuring the PCM interface\n");
-      if ((err = snd_pcm_hw_params (playback_handle, hw_params)) < 0) {
+      if ((err = snd_pcm_hw_params(playback_handle, hw_params)) < 0) {
         DEBUG(DEB_LEV_ERR, "cannot set parameters (%s)\n",  snd_strerror (err));
         return OMX_ErrorHardware;
       }
