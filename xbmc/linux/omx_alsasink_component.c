@@ -276,7 +276,7 @@ OMX_ERRORTYPE omx_alsasink_component_port_SendBufferFunction(omx_base_PortType *
   if(!PORT_IS_BEING_FLUSHED(openmaxStandPort) && !(PORT_IS_BEING_DISABLED(openmaxStandPort) && PORT_IS_TUNNELED_N_BUFFER_SUPPLIER(openmaxStandPort))){
       omx_queue(openmaxStandPort->pBufferQueue, pBuffer);
       omx_tsem_up(openmaxStandPort->pBufferSem);
-      DEBUG(DEB_LEV_PARAMS, "In %s Signalling bMgmtSem Port Index=%d\n",__func__, (int)portIndex);
+      //DEBUG(DEB_LEV_PARAMS, "In %s Signalling bMgmtSem Port Index=%d\n",__func__, (int)portIndex);
       omx_tsem_up(omx_base_component_Private->bMgmtSem);
   }else if(PORT_IS_BUFFER_SUPPLIER(openmaxStandPort)){
       DEBUG(DEB_LEV_FULL_SEQ, "In %s: Comp %s received io:%d buffer\n",
@@ -526,11 +526,21 @@ OMX_ERRORTYPE omx_alsasink_component_port_FlushProcessingBuffers(omx_base_PortTy
 
   if (!PORT_IS_ENABLED(openmaxStandPort) || PORT_IS_BEING_DISABLED(openmaxStandPort)) {
     if (PORT_IS_TUNNELED_N_BUFFER_SUPPLIER(openmaxStandPort)) {
-      while(openmaxStandPort->pBufferQueue->nelem!= openmaxStandPort->nNumAssignedBuffers){
-        DEBUG(DEB_LEV_PARAMS, "In %s ---------- waiting for buffers. qelem=%d\n",__func__,openmaxStandPort->pBufferQueue->nelem);
-        omx_tsem_down(openmaxStandPort->pBufferSem);
-        DEBUG(DEB_LEV_PARAMS, "In %s Got a buffer qelem=%d\n",__func__,openmaxStandPort->pBufferQueue->nelem);
+      DEBUG(DEB_LEV_FULL_SEQ, "In %s ---------- waiting for buffers. qelem=%d\n",__func__,openmaxStandPort->pBufferQueue->nelem);
+      int nRetry = 0;
+      while((openmaxStandPort->pBufferQueue->nelem != openmaxStandPort->nNumAssignedBuffers) &&
+            (nRetry < TUNNEL_USE_BUFFER_RETRY)){
+        usleep(TUNNEL_USE_BUFFER_RETRY_USLEEP_TIME);
+        nRetry++;
       }
+      if (nRetry == TUNNEL_USE_BUFFER_RETRY){
+        // In some rare cases we can't collect all buffers back
+        DEBUG(DEB_LEV_ERR, "In %s Failed to get buffers back. Got a buffer qelem=%d\n",__func__,openmaxStandPort->pBufferQueue->nelem);
+      }
+      else{
+        DEBUG(DEB_LEV_FULL_SEQ, "In %s All buffers returned in %d iterations.\n",__func__, nRetry);
+      }
+
       omx_tsem_reset(openmaxStandPort->pBufferSem);
     }
     return OMX_ErrorNone;
@@ -621,8 +631,8 @@ void omx_alsasink_component_BufferMgmtCallback(OMX_COMPONENTTYPE *openmaxStandCo
   omx_alsasink_component_PrivateType* omx_alsasink_component_Private = openmaxStandComp->pComponentPrivate;
   
   frameSize = (omx_alsasink_component_Private->sPCMModeParam.nChannels * omx_alsasink_component_Private->sPCMModeParam.nBitPerSample) >> 3;
-  DEBUG(DEB_LEV_FULL_SEQ, "Framesize is %u chl=%d bufSize=%d\n", 
-  (int)frameSize, (int)omx_alsasink_component_Private->sPCMModeParam.nChannels, (int)inputbuffer->nFilledLen);
+  //DEBUG(DEB_LEV_FULL_SEQ, "Framesize is %u chl=%d bufSize=%d\n", 
+  //(int)frameSize, (int)omx_alsasink_component_Private->sPCMModeParam.nChannels, (int)inputbuffer->nFilledLen);
 
   if(inputbuffer->nFilledLen < frameSize){
     DEBUG(DEB_LEV_ERR, "Ouch!! In %s input buffer filled len(%d) less than frame size(%d)\n",__func__, (int)inputbuffer->nFilledLen, (int)frameSize);
@@ -890,7 +900,7 @@ OMX_ERRORTYPE omx_alsasink_component_SetParameter(
 
       snd_pcm_uframes_t periodSize, bufferSize;
       bufferSize = sPCMModeParam->nSamplingRate / 5;
-      periodSize = sPCMModeParam->nSamplingRate / 20;
+      periodSize = bufferSize / 4; //sPCMModeParam->nSamplingRate / 20;
 
       snd_pcm_uframes_t periodSizeMax = bufferSize / 3;
       DEBUG(DEB_LEV_SIMPLE_SEQ, "trying snd_pcm_hw_params_set_period_size_max (%d)\n", periodSizeMax);
