@@ -894,7 +894,10 @@ OMX_ERRORTYPE base_port_ReturnBufferFunction(omx_base_PortType* openmaxStandPort
   }  
   else if (PORT_IS_TUNNELED_N_BUFFER_SUPPLIER(openmaxStandPort) && 
             !PORT_IS_BEING_FLUSHED(openmaxStandPort)) {
-    if (openmaxStandPort->sPortParam.eDir == OMX_DirInput) {
+    if (!PORT_IS_ENABLED(openmaxStandPort) || PORT_IS_BEING_DISABLED(openmaxStandPort)) {
+      omx_queue(pQueue, pBuffer);
+      omx_tsem_up(pSem);
+    } else if (openmaxStandPort->sPortParam.eDir == OMX_DirInput) {
       eError = ((OMX_COMPONENTTYPE*)(openmaxStandPort->hTunneledComponent))->FillThisBuffer(openmaxStandPort->hTunneledComponent, pBuffer);
       /// AND TODO:
       /// see 2.2 of http://www.khronos.org/registry/omxil/specs/OpenMAX_IL_1_1_2_Application_Note_318.pdf
